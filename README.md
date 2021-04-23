@@ -53,7 +53,7 @@ To train/eval you can use the following scripts:
      
 ### Pretrained Model
 
-[SalsaNext](https://cutt.ly/bpadjGj)
+[SalsaNext](https://drive.google.com/file/d/10fxIwPK10UVVB9jsgXDZSDwj4vy9MyTl/view?usp=sharing)
      
 ### Disclamer
 
