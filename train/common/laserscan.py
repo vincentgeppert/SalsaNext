@@ -195,8 +195,10 @@ class LaserScan:
 
 
 class SemLaserScan(LaserScan):
-    """Class that contains LaserScan with x,y,z,r,sem_label,sem_color_label,inst_label,inst_color_label"""
-    EXTENSIONS_LABEL = ['.label']
+    """Class that contains LaserScan with x,y,z,r,sem_label"""
+    #EXTENSIONS_LABEL = ['.label'] #SemanticKitti
+    EXTENSIONS_LABEL = ['.bin'] #recovered KITTI-360
+
 
     def __init__(self, sem_color_dict=None, project=False, H=64, W=1024, fov_up=3.0, fov_down=-25.0, max_classes=300,DA=False,flip_sign=False,drop_points=False):
         super(SemLaserScan, self).__init__(project, H, W, fov_up, fov_down,DA=DA,flip_sign=flip_sign,drop_points=drop_points)
@@ -221,6 +223,8 @@ class SemLaserScan(LaserScan):
             # force zero to a gray-ish color
             self.sem_color_lut[0] = np.full((3), 0.1)
 
+        #not needed for KITTI-360
+        '''
         # make instance colors
         max_inst_id = 100000
         self.inst_color_lut = np.random.uniform(low=0.0,
@@ -228,30 +232,37 @@ class SemLaserScan(LaserScan):
                                                 size=(max_inst_id, 3))
         # force zero to a gray-ish color
         self.inst_color_lut[0] = np.full((3), 0.1)
+        '''
 
     def reset(self):
         """ Reset scan members. """
         super(SemLaserScan, self).reset()
 
         # semantic labels
-        self.sem_label = np.zeros((0, 1), dtype=np.int32)  # [m, 1]: label
+        #self.sem_label = np.zeros((0, 1), dtype=np.int32)  # [m, 1]: label
+        self.sem_label = np.zeros((0, 1), dtype=np.int16)  # [m, 1]: label
         self.sem_label_color = np.zeros((0, 3), dtype=np.float32)  # [m ,3]: color
 
-        # instance labels
-        self.inst_label = np.zeros((0, 1), dtype=np.int32)  # [m, 1]: label
-        self.inst_label_color = np.zeros((0, 3), dtype=np.float32)  # [m ,3]: color
+        # instance labels not needed when working with recovred KITTI-360
+        #self.inst_label = np.zeros((0, 1), dtype=np.int32)  # [m, 1]: label
+        #self.inst_label_color = np.zeros((0, 3), dtype=np.float32)  # [m ,3]: color
 
         # projection color with semantic labels
+        # SemanticKITTI: int32
+        #self.proj_sem_label = np.zeros((self.proj_H, self.proj_W),
+        #                               dtype=np.int32)  # [H,W]  label
+        # recovered KITTI-360: int16
         self.proj_sem_label = np.zeros((self.proj_H, self.proj_W),
-                                       dtype=np.int32)  # [H,W]  label
+                                       dtype=np.int16)  # [H,W]  label
         self.proj_sem_color = np.zeros((self.proj_H, self.proj_W, 3),
-                                       dtype=np.float)  # [H,W,3] color
+                                       dtype=np.float32)  # [H,W,3] color
 
+        #instance labels not needed when working with recovered KITTI-360
         # projection color with instance labels
-        self.proj_inst_label = np.zeros((self.proj_H, self.proj_W),
-                                        dtype=np.int32)  # [H,W]  label
-        self.proj_inst_color = np.zeros((self.proj_H, self.proj_W, 3),
-                                        dtype=np.float)  # [H,W,3] color
+        #self.proj_inst_label = np.zeros((self.proj_H, self.proj_W),
+        #                                dtype=np.int32)  # [H,W]  label
+        #self.proj_inst_color = np.zeros((self.proj_H, self.proj_W, 3),
+        #                                dtype=np.float)  # [H,W,3] color
 
     def open_label(self, filename):
         """ Open raw scan and fill in attributes
@@ -266,7 +277,7 @@ class SemLaserScan(LaserScan):
             raise RuntimeError("Filename extension is not valid label file.")
 
         # if all goes well, open label
-        label = np.fromfile(filename, dtype=np.int32)
+        label = np.fromfile(filename, dtype=np.int16)
         label = label.reshape((-1))
 
         if self.drop_points is not False:
@@ -283,15 +294,18 @@ class SemLaserScan(LaserScan):
 
         # only fill in attribute if the right size
         if label.shape[0] == self.points.shape[0]:
-            self.sem_label = label & 0xFFFF  # semantic label in lower half
-            self.inst_label = label >> 16  # instance id in upper half
+            self.sem_label = label
+            # not needed when working with recovered KITTI-360
+            #self.sem_label = label & 0xFFFF  # semantic label in lower half
+            #self.inst_label = label >> 16  # instance id in upper half
         else:
             print("Points shape: ", self.points.shape)
             print("Label shape: ", label.shape)
             raise ValueError("Scan and Label don't contain same number of points")
 
         # sanity check
-        assert ((self.sem_label + (self.inst_label << 16) == label).all())
+        #assert ((self.sem_label + (self.inst_label << 16) == label).all())
+        assert ((self.sem_label == label).all())
 
         if self.project:
             self.do_label_projection()
@@ -302,8 +316,9 @@ class SemLaserScan(LaserScan):
         self.sem_label_color = self.sem_color_lut[self.sem_label]
         self.sem_label_color = self.sem_label_color.reshape((-1, 3))
 
-        self.inst_label_color = self.inst_color_lut[self.inst_label]
-        self.inst_label_color = self.inst_label_color.reshape((-1, 3))
+        # not needed when working with recovered KITTI-360
+        #self.inst_label_color = self.inst_color_lut[self.inst_label]
+        #self.inst_label_color = self.inst_label_color.reshape((-1, 3))
 
     def do_label_projection(self):
         # only map colors to labels that exist
@@ -313,6 +328,7 @@ class SemLaserScan(LaserScan):
         self.proj_sem_label[mask] = self.sem_label[self.proj_idx[mask]]
         self.proj_sem_color[mask] = self.sem_color_lut[self.sem_label[self.proj_idx[mask]]]
 
+        # not needed when working with recovered KITTI-360
         # instances
-        self.proj_inst_label[mask] = self.inst_label[self.proj_idx[mask]]
-        self.proj_inst_color[mask] = self.inst_color_lut[self.inst_label[self.proj_idx[mask]]]
+        #self.proj_inst_label[mask] = self.inst_label[self.proj_idx[mask]]
+        #self.proj_inst_color[mask] = self.inst_color_lut[self.inst_label[self.proj_idx[mask]]]

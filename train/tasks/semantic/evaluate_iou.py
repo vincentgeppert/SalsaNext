@@ -24,45 +24,45 @@ def eval(test_sequences,splits,pred):
     # get scan paths
     scan_names = []
     for sequence in test_sequences:
-        sequence = '{0:02d}'.format(int(sequence))
-        scan_paths = os.path.join(FLAGS.dataset, "sequences",
-                                  str(sequence), "velodyne")
+        #sequence = '2013_05_28_drive_%04d_sync' %sequence #KITTI-360
+        sequence = '{0:02d}'.format(int(sequence)) #KITTI odometry
+        scan_paths = os.path.join(FLAGS.dataset, str(sequence), "velodyne")
         # populate the scan names
         seq_scan_names = [os.path.join(dp, f) for dp, dn, fn in os.walk(
             os.path.expanduser(scan_paths)) for f in fn if ".bin" in f]
         seq_scan_names.sort()
         scan_names.extend(seq_scan_names)
-    # print(scan_names)
+    #print(scan_names)
 
     # get label paths
     label_names = []
     for sequence in test_sequences:
-        sequence = '{0:02d}'.format(int(sequence))
-        label_paths = os.path.join(FLAGS.dataset, "sequences",
-                                   str(sequence), "labels")
+        #sequence = '2013_05_28_drive_%04d_sync' %sequence #KITTI-360
+        sequence = '{0:02d}'.format(int(sequence)) #KITTI odometry
+        label_paths = os.path.join(FLAGS.dataset, str(sequence), "labels")
         # populate the label names
         seq_label_names = [os.path.join(dp, f) for dp, dn, fn in os.walk(
-            os.path.expanduser(label_paths)) for f in fn if ".label" in f]
+            os.path.expanduser(label_paths)) for f in fn if ".bin" in f]
         seq_label_names.sort()
         label_names.extend(seq_label_names)
-    # print(label_names)
+    #print(label_names)
 
     # get predictions paths
     pred_names = []
     for sequence in test_sequences:
-        sequence = '{0:02d}'.format(int(sequence))
-        pred_paths = os.path.join(FLAGS.predictions, "sequences",
-                                  sequence, "predictions")
+        #sequence = '2013_05_28_drive_%04d_sync' %sequence #KITTI-360
+        sequence = '{0:02d}'.format(int(sequence)) #KITTI odometry
+        pred_paths = os.path.join(FLAGS.predictions, str(sequence), "predictions")
         # populate the label names
         seq_pred_names = [os.path.join(dp, f) for dp, dn, fn in os.walk(
-            os.path.expanduser(pred_paths)) for f in fn if ".label" in f]
+            os.path.expanduser(pred_paths)) for f in fn if ".bin" in f]
         seq_pred_names.sort()
         pred_names.extend(seq_pred_names)
-    # print(pred_names)
+    print(pred_names)
 
     # check that I have the same number of files
-    # print("labels: ", len(label_names))
-    # print("predictions: ", len(pred_names))
+    #print("labels: ", len(label_names))
+    #print("predictions: ", len(pred_names))
     assert (len(label_names) == len(scan_names) and
             len(label_names) == len(pred_names))
 
@@ -70,6 +70,16 @@ def eval(test_sequences,splits,pred):
     # open each file, get the tensor, and make the iou comparison
     for scan_file, label_file, pred_file in zip(scan_names, label_names, pred_names):
         print("evaluating label ", label_file, "with", pred_file)
+      
+        # open prediction
+        pred = SemLaserScan(project=False)
+        pred.open_scan(scan_file)
+        pred.open_label(pred_file)
+        
+        u_pred_sem = remap_lut[pred.sem_label]  # remap to xentropy format
+        if FLAGS.limit is not None:
+            u_pred_sem = u_pred_sem[:FLAGS.limit]
+        
         # open label
         label = SemLaserScan(project=False)
         label.open_scan(scan_file)
@@ -77,14 +87,6 @@ def eval(test_sequences,splits,pred):
         u_label_sem = remap_lut[label.sem_label]  # remap to xentropy format
         if FLAGS.limit is not None:
             u_label_sem = u_label_sem[:FLAGS.limit]
-
-        # open prediction
-        pred = SemLaserScan(project=False)
-        pred.open_scan(scan_file)
-        pred.open_label(pred_file)
-        u_pred_sem = remap_lut[pred.sem_label]  # remap to xentropy format
-        if FLAGS.limit is not None:
-            u_pred_sem = u_pred_sem[:FLAGS.limit]
 
         # add single scan to evaluation
         evaluator.addBatch(u_pred_sem, u_label_sem)
@@ -151,11 +153,11 @@ if __name__ == '__main__':
              str(splits) + '. Defaults to %(default)s',
     )
     parser.add_argument(
-        '--data_cfg', '-dc',
+        '--model', '-m',
         type=str,
-        required=False,
-        default="config/labels/semantic-kitti.yaml",
-        help='Dataset config file. Defaults to %(default)s',
+        required=True,
+        default=None,
+        help='Directory to get the trained model.'
     )
     parser.add_argument(
         '--limit', '-l',
@@ -179,17 +181,17 @@ if __name__ == '__main__':
     print("Data: ", FLAGS.dataset)
     print("Predictions: ", FLAGS.predictions)
     print("Split: ", FLAGS.split)
-    print("Config: ", FLAGS.data_cfg)
+    print("Config from: ", FLAGS.model)
     print("Limit: ", FLAGS.limit)
     print("*" * 80)
 
     # assert split
-    assert (FLAGS.split in splits)
+    #assert (FLAGS.split in splits)
 
     # open data config file
     try:
-        print("Opening data config file %s" % FLAGS.data_cfg)
-        DATA = yaml.safe_load(open(FLAGS.data_cfg, 'r'))
+        print("Opening data config file from %s" % FLAGS.model)
+        DATA = yaml.safe_load(open(FLAGS.model + "/kitti360_data_cfg.yaml", 'r'))
     except Exception as e:
         print(e)
         print("Error opening data yaml file.")
@@ -208,7 +210,7 @@ if __name__ == '__main__':
         if key > maxkey:
             maxkey = key
     # +100 hack making lut bigger just in case there are unknown labels
-    remap_lut = np.zeros((maxkey + 100), dtype=np.int32)
+    remap_lut = np.zeros((maxkey + 100), dtype=np.int16)
     for key, data in class_remap.items():
         try:
             remap_lut[key] = data

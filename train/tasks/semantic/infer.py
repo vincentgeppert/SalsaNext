@@ -11,6 +11,7 @@ import shutil
 import __init__ as booger
 
 from tasks.semantic.modules.user import *
+
 def str2bool(v):
     if isinstance(v, bool):
        return v
@@ -58,7 +59,6 @@ if __name__ == '__main__':
         help='Number of samplings per scan'
     )
 
-
     parser.add_argument(
         '--split', '-s',
         type=str,
@@ -66,6 +66,14 @@ if __name__ == '__main__':
         default=None,
         help='Split to evaluate on. One of ' +
              str(splits) + '. Defaults to %(default)s',
+    )
+
+    parser.add_argument(
+        '--epistemic', '-e',
+        type=str2bool,
+        required=False,
+        default=False,
+        help='Set this if you dont want to use Uncertainty Version but still want to get epistemic uncertainty',
     )
     FLAGS, unparsed = parser.parse_known_args()
 
@@ -78,6 +86,7 @@ if __name__ == '__main__':
     print("Uncertainty", FLAGS.uncertainty)
     print("Monte Carlo Sampling", FLAGS.monte_carlo)
     print("infering", FLAGS.split)
+    print("epistemic uncertainty", FLAGS.epistemic)
     print("----------\n")
     #print("Commit hash (training version): ", str(
     #    subprocess.check_output(['git', 'rev-parse', '--short', 'HEAD']).strip()))
@@ -86,7 +95,7 @@ if __name__ == '__main__':
     # open arch config file
     try:
         print("Opening arch config file from %s" % FLAGS.model)
-        ARCH = yaml.safe_load(open(FLAGS.model + "/arch_cfg.yaml", 'r'))
+        ARCH = yaml.safe_load(open(FLAGS.model + "/kitti360_arch_cfg.yaml", 'r'))
     except Exception as e:
         print(e)
         print("Error opening arch yaml file.")
@@ -95,7 +104,7 @@ if __name__ == '__main__':
     # open data config file
     try:
         print("Opening data config file from %s" % FLAGS.model)
-        DATA = yaml.safe_load(open(FLAGS.model + "/data_cfg.yaml", 'r'))
+        DATA = yaml.safe_load(open(FLAGS.model + "/kitti_odometry_data_cfg.yaml", 'r'))
     except Exception as e:
         print(e)
         print("Error opening data yaml file.")
@@ -103,34 +112,34 @@ if __name__ == '__main__':
 
     # create log folder
     try:
-        if os.path.isdir(FLAGS.log):
-            shutil.rmtree(FLAGS.log)
-        os.makedirs(FLAGS.log)
-        os.makedirs(os.path.join(FLAGS.log, "sequences"))
-        for seq in DATA["split"]["train"]:
-            seq = '{0:02d}'.format(int(seq))
-            print("train", seq)
-            os.makedirs(os.path.join(FLAGS.log, "sequences", seq))
-            os.makedirs(os.path.join(FLAGS.log, "sequences", seq, "predictions"))
-        for seq in DATA["split"]["valid"]:
-            seq = '{0:02d}'.format(int(seq))
-            print("valid", seq)
-            os.makedirs(os.path.join(FLAGS.log, "sequences", seq))
-            os.makedirs(os.path.join(FLAGS.log, "sequences", seq, "predictions"))
-        for seq in DATA["split"]["test"]:
-            seq = '{0:02d}'.format(int(seq))
-            print("test", seq)
-            os.makedirs(os.path.join(FLAGS.log, "sequences", seq))
-            os.makedirs(os.path.join(FLAGS.log, "sequences", seq, "predictions"))
+        if not os.path.exists(os.path.join(FLAGS.log, 'SalsaNext_semantics')):
+            os.makedirs(os.path.join(FLAGS.log, 'SalsaNext_semantics'))
+        #os.makedirs(os.path.join(FLAGS.log, "sequences"))
+        if FLAGS.split == 'train':
+            for seq in DATA["split"]["train"]:
+                seq = '{0:02d}'.format(int(seq)) #KITTI odometry
+                #seq = '2013_05_28_drive_%04d_sync' %seq #KITTI-360
+                print("train", seq)
+                os.makedirs(os.path.join(FLAGS.log, 'SalsaNext_semantics', seq))
+                os.makedirs(os.path.join(FLAGS.log, 'SalsaNext_semantics', seq, "predictions"))
+        if FLAGS.split == 'valid':
+            for seq in DATA["split"]["valid"]:
+                seq = '{0:02d}'.format(int(seq)) #KITTI odometry
+                #seq = '2013_05_28_drive_%04d_sync' %seq #KITTI-360
+                print("valid", seq)
+                os.makedirs(os.path.join(FLAGS.log, 'SalsaNext_semantics', seq))
+                os.makedirs(os.path.join(FLAGS.log, 'SalsaNext_semantics', seq, "predictions"))
+        if FLAGS.split == 'test':
+            for seq in DATA["split"]["test"]:
+                seq = '{0:02d}'.format(int(seq)) #KITTI odometry
+                #seq = '2013_05_28_drive_%04d_sync' %seq #KITTI-360
+                print("test", seq)
+                os.makedirs(os.path.join(FLAGS.log, 'SalsaNext_semantics', seq))
+                os.makedirs(os.path.join(FLAGS.log, 'SalsaNext_semantics', seq, "predictions"))
     except Exception as e:
         print(e)
         print("Error creating log directory. Check permissions!")
         raise
-
-    except Exception as e:
-        print(e)
-        print("Error creating log directory. Check permissions!")
-        quit()
 
     # does model folder exist?
     if os.path.isdir(FLAGS.model):
@@ -140,5 +149,6 @@ if __name__ == '__main__':
         quit()
 
     # create user and infer dataset
-    user = User(ARCH, DATA, FLAGS.dataset, FLAGS.log, FLAGS.model,FLAGS.split,FLAGS.uncertainty,FLAGS.monte_carlo)
+    FLAGS.log = os.path.join(FLAGS.log, 'SalsaNext_semantics')
+    user = User(ARCH, DATA, FLAGS.dataset, FLAGS.log, FLAGS.model,FLAGS.split, FLAGS.uncertainty, FLAGS.epistemic, FLAGS.monte_carlo)
     user.infer()

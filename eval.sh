@@ -9,7 +9,7 @@ get_abs_filename() {
   echo "$(cd "$(dirname "$1")" && pwd)/$(basename "$1")"
 }
 
-while getopts "d:p:m:s:n:c:u:g" opt
+while getopts "d:p:m:s:n:c:e:u:g" opt
 do
    case "$opt" in
       d ) d="$OPTARG" ;;
@@ -18,6 +18,7 @@ do
       s ) s="$OPTARG" ;;
       n ) n="$OPTARG"  ;;
       g ) g="$OPTARG" ;;
+      e ) e="$OPTARG" ;;
       u ) u="$OPTARG" ;;
       c ) c="$OPTARG" ;;
       ? ) helpFunction ;;
@@ -32,10 +33,14 @@ fi
 if [ -z "$u" ]
 then u='false'
 fi
+if [ -z "$e" ]
+then e='false'
+fi
 d=$(get_abs_filename "$d")
 p=$(get_abs_filename "$p")
 m=$(get_abs_filename "$m")
 export CUDA_VISIBLE_DEVICES="$g"
-cd ./train/tasks/semantic/; ./infer.py -d "$d" -l "$p" -m "$m" -n "$n" -s "$s" -u "$u" -c "$c"
-echo "finishing infering.\n Starting evaluating"
-./evaluate_iou.py -d "$d" -p "$p" --split "$s" -m "$m"
+#export CUDA_VISIBLE_DEVICES=0
+cd ./train/tasks/semantic/; ./infer.py -d "$d" -l "$p" -m "$m" -n "$n" -s "$s" -u "$u" -c "$c" -e "$e"
+echo "finishing infering."
+#./evaluate_iou.py -d "$d" -p "$p" --split "$s" -m "$m"

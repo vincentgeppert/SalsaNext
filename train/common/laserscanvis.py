@@ -41,6 +41,7 @@ class LaserScanVis:
     self.grid = self.canvas.central_widget.add_grid()
 
     # laserscan part
+    #only if also want to visualize depth
     self.scan_view = vispy.scene.widgets.ViewBox(
         border_color='white', parent=self.canvas.scene)
     self.grid.add_widget(self.scan_view, 0, 0)
@@ -48,12 +49,16 @@ class LaserScanVis:
     self.scan_view.camera = 'turntable'
     self.scan_view.add(self.scan_vis)
     visuals.XYZAxis(parent=self.scan_view.scene)
+
     # add semantics
     if self.semantics:
       print("Using semantics in visualizer")
       self.sem_view = vispy.scene.widgets.ViewBox(
           border_color='white', parent=self.canvas.scene)
-      self.grid.add_widget(self.sem_view, 0, 1)
+      '''
+      self.grid.add_widget(self.sem_view, 0, 1) only if also want to visualize depth
+      '''
+      self.grid.add_widget(self.sem_view, 0, 0)
       self.sem_vis = visuals.Markers()
       self.sem_view.camera = 'turntable'
       self.sem_view.add(self.sem_vis)
@@ -104,6 +109,7 @@ class LaserScanVis:
       self.sem_img_vis = visuals.Image(cmap='viridis')
       self.sem_img_view.add(self.sem_img_vis)
 
+    #not needed when working with recovered KITTI-360
     # add instances
     if self.instances:
       self.inst_img_view = vispy.scene.widgets.ViewBox(
@@ -149,6 +155,8 @@ class LaserScanVis:
                      255).astype(np.uint8)
     viridis_map = self.get_mpl_colormap("viridis")
     viridis_colors = viridis_map[viridis_range]
+    
+    # only if also want to visualize depth
     self.scan_vis.set_data(self.scan.points,
                            face_color=viridis_colors[..., ::-1],
                            edge_color=viridis_colors[..., ::-1],
@@ -161,6 +169,7 @@ class LaserScanVis:
                             edge_color=self.scan.sem_label_color[..., ::-1],
                             size=1)
 
+    #not needed when working with recovered KITTI-360
     # plot instances
     if self.instances:
       self.inst_vis.set_data(self.scan.points,
@@ -185,6 +194,7 @@ class LaserScanVis:
       self.sem_img_vis.set_data(self.scan.proj_sem_color[..., ::-1])
       self.sem_img_vis.update()
 
+    #not needed when working with recovered KITTI-360
     if self.instances:
       self.inst_img_vis.set_data(self.scan.proj_inst_color[..., ::-1])
       self.inst_img_vis.update()

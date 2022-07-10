@@ -20,6 +20,7 @@ from tasks.semantic.modules.ioueval import *
 from tasks.semantic.modules.SalsaNext import *
 from tasks.semantic.modules.SalsaNextAdf import *
 from tasks.semantic.modules.Lovasz_Softmax import Lovasz_softmax
+from tasks.semantic.modules.helper_model import *
 import tasks.semantic.modules.adf as adf
 
 def keep_variance_fn(x):
@@ -32,7 +33,6 @@ def one_hot_pred_from_label(y_pred, labels):
     y_true[torch.arange(labels.size(0)), indexes] = ones[torch.arange(labels.size(0)), indexes]
 
     return y_true
-
 
 class SoftmaxHeteroscedasticLoss(torch.nn.Module):
     def __init__(self):
@@ -61,20 +61,23 @@ def save_checkpoint(to_save, logdir, suffix=""):
 
 
 class Trainer():
-    def __init__(self, ARCH, DATA, datadir, logdir, path=None,uncertainty=False):
+    def __init__(self, writer, ARCH, DATA, datadir, logdir, path=None, uncertainty=False):
         # parameters
-        self.ARCH = ARCH
-        self.DATA = DATA
-        self.datadir = datadir
-        self.log = logdir
-        self.path = path
-        self.uncertainty = uncertainty
+        self.ARCH = ARCH # arch config file
+        self.DATA = DATA # data config file
+        self.datadir = datadir # directory to dataset
+        self.log = logdir # directory to save weights after training
+        self.path = path #path to pretrained model
+        self.uncertainty = uncertainty #boolean, default:False
 
         self.batch_time_t = AverageMeter()
         self.data_time_t = AverageMeter()
         self.batch_time_e = AverageMeter()
         self.epoch = 0
-
+        
+        # tensorboard
+        self.writer = writer
+        
         # put logger where it belongs
 
         self.info = {"train_update": 0,
@@ -90,7 +93,7 @@ class Trainer():
         # get the data
         parserModule = imp.load_source("parserModule",
                                        booger.TRAIN_PATH + '/tasks/semantic/dataset/' +
-                                       self.DATA["name"] + '/parser.py')
+                                       self.DATA["name"] + '/parser.py') # load and initialize a module implemented as a python source file and return its module object
         self.parser = parserModule.Parser(root=self.datadir,
                                           train_sequences=self.DATA["split"]["train"],
                                           valid_sequences=self.DATA["split"]["valid"],
@@ -173,11 +176,38 @@ class Trainer():
                                   warmup_steps=up_steps,
                                   momentum=self.ARCH["train"]["momentum"],
                                   decay=final_decay)
+        
+        #####
+        #freeze all layers
+        #for param in self.model.parameters():
+        #    param.requires_grad = False
+        #unfreeze the last layer, cause this is the layer we want to train separately
+        #self.model.logits.weight.requires_grad = True
+        #self.model.logits.bias.requires_grad = True
+        #####
 
         if self.path is not None:
             torch.nn.Module.dump_patches = True
             w_dict = torch.load(path + "/SalsaNext",
                                 map_location=lambda storage, loc: storage)
+
+            ##### 
+            # https://github.com/Halmstad-University/SalsaNext/issues/68
+            # the last layer has more classes (45) than the pretrained model -> change the weights of the last layer
+            #help_model = helper_model(self.parser.get_n_classes())
+            #help_model_statedict = help_model.state_dict()
+            #weight = help_model_statedict['logits.weight']
+            #bias = help_model_statedict['logits.bias'] 
+            #w_dict['state_dict']['module.logits.weight'] = weight
+            #w_dict['state_dict']['module.logits.bias'] = bias
+            # https://github.com/Halmstad-University/SalsaNext/issues/65
+            # the modules are there but the names are different, delete 'module.' so they match
+            #state_dict = w_dict['state_dict']
+            #for key in list(state_dict.keys()):
+            #    state_dict[key.replace('module.', '')] = state_dict.pop(key)
+            #self.model.load_state_dict(state_dict, strict=True)
+            #####
+
             self.model.load_state_dict(w_dict['state_dict'], strict=True)
             self.optimizer.load_state_dict(w_dict['optimizer'])
             self.epoch = w_dict['epoch'] + 1
@@ -269,6 +299,11 @@ class Trainer():
                                                            report=self.ARCH["train"]["report_batch"],
                                                            show_scans=self.ARCH["train"]["show_scans"])
 
+            #tensorboard
+            self.writer.add_scalar("acc_train per epoch", acc, epoch)
+            self.writer.add_scalar("iou_train per epoch", iou, epoch)
+            self.writer.add_scalar("loss_train per epoch", loss, epoch)
+
             # update info
             self.info["train_update"] = update_mean
             self.info["train_loss"] = loss
@@ -304,6 +339,11 @@ class Trainer():
                                                          class_func=self.parser.get_xentropy_class_string,
                                                          color_fn=self.parser.to_color,
                                                          save_scans=self.ARCH["train"]["save_scans"])
+                
+                #tensorboard
+                self.writer.add_scalar("acc_val per report_epoch", acc, epoch)
+                self.writer.add_scalar("iou_val per report_epoch", iou, epoch)
+                self.writer.add_scalar("loss_val per report_epoch", loss, epoch)
 
                 # update info
                 self.info["valid_loss"] = loss
@@ -336,7 +376,7 @@ class Trainer():
                                 model=self.model_single,
                                 img_summary=self.ARCH["train"]["save_scans"],
                                 imgs=rand_img)
-
+        self.writer.flush()
         print('Finished Training')
 
         return
@@ -371,13 +411,13 @@ class Trainer():
                 output = model(in_vol)
                 output_mean, output_var = adf.Softmax(dim=1, keep_variance_fn=keep_variance_fn)(*output)
                 hetero = self.SoftmaxHeteroscedasticLoss(output,proj_labels)
-                loss_m = criterion(output_mean.clamp(min=1e-8), proj_labels) + hetero + self.ls(output_mean, proj_labels.long())
+                loss_m = criterion(output_mean.clamp(min=1e-8), proj_labels.long()) + hetero + self.ls(output_mean, proj_labels.long())
 
                 hetero_l.update(hetero.mean().item(), in_vol.size(0))
                 output = output_mean
             else:
                 output = model(in_vol)
-                loss_m = criterion(torch.log(output.clamp(min=1e-8)), proj_labels) + self.ls(output, proj_labels.long())
+                loss_m = criterion(torch.log(output.clamp(min=1e-8)), proj_labels.long()) + self.ls(output, proj_labels.long())
 
             optimizer.zero_grad()
             if self.n_gpus > 1:
@@ -642,3 +682,4 @@ class Trainer():
 
 
         return acc.avg, iou.avg, losses.avg, rand_imgs, hetero_l.avg
+        

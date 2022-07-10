@@ -16,6 +16,8 @@ from tasks.semantic.modules.SalsaNext import *
 #from tasks.semantic.modules.save_dataset_projected import *
 import math
 from decimal import Decimal
+from torch.utils.tensorboard import SummaryWriter
+
 
 def remove_exponent(d):
     return d.quantize(Decimal(1)) if d == d.to_integral() else d.normalize()
@@ -50,6 +52,7 @@ if __name__ == '__main__':
         '--dataset', '-d',
         type=str,
         required=True,
+        default= None,
         help='Dataset to train with. No Default',
     )
     parser.add_argument(
@@ -62,7 +65,7 @@ if __name__ == '__main__':
         '--data_cfg', '-dc',
         type=str,
         required=False,
-        default='config/labels/semantic-kitti.yaml',
+        default='config/labels/kitti360_data_cfg_new.yaml',
         help='Classification yaml cfg file. See /config/labels for sample. No default!',
     )
     parser.add_argument(
@@ -93,11 +96,11 @@ if __name__ == '__main__':
 
     FLAGS, unparsed = parser.parse_known_args()
     FLAGS.log = FLAGS.log + '/logs/' + datetime.datetime.now().strftime("%Y-%-m-%d-%H:%M") + FLAGS.name
-    if FLAGS.uncertainty:
-        params = SalsaNextUncertainty(20)
+    if FLAGS.uncertainty: #checke ob uncertainty ausgewählt wurde
+        params = SalsaNextUncertainty(20) #aus train/tasks/semantic/modules/SalsaNextAdf.py
         pytorch_total_params = sum(p.numel() for p in params.parameters() if p.requires_grad)
     else:
-        params = SalsaNext(20)
+        params = SalsaNext(20) #Standard ohne uncertainty
         pytorch_total_params = sum(p.numel() for p in params.parameters() if p.requires_grad)
     # print summary of what we will do
     print("----------")
@@ -117,7 +120,7 @@ if __name__ == '__main__':
     # open arch config file
     try:
         print("Opening arch config file %s" % FLAGS.arch_cfg)
-        ARCH = yaml.safe_load(open(FLAGS.arch_cfg, 'r'))
+        ARCH = yaml.safe_load(open(FLAGS.arch_cfg, 'r'))    # 'r' open file for reading
     except Exception as e:
         print(e)
         print("Error opening arch yaml file.")
@@ -126,7 +129,7 @@ if __name__ == '__main__':
     # open data config file
     try:
         print("Opening data config file %s" % FLAGS.data_cfg)
-        DATA = yaml.safe_load(open(FLAGS.data_cfg, 'r'))
+        DATA = yaml.safe_load(open(FLAGS.data_cfg, 'r'))    # 'r' open file for reading
     except Exception as e:
         print(e)
         print("Error opening data yaml file.")
@@ -173,5 +176,6 @@ if __name__ == '__main__':
         quit()
 
     # create trainer and start the training
-    trainer = Trainer(ARCH, DATA, FLAGS.dataset, FLAGS.log, FLAGS.pretrained,FLAGS.uncertainty)
+    writer = SummaryWriter()
+    trainer = Trainer(writer, ARCH, DATA, FLAGS.dataset, FLAGS.log, FLAGS.pretrained, FLAGS.uncertainty)
     trainer.train()
