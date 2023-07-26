@@ -117,21 +117,21 @@ if __name__ == '__main__':
         #os.makedirs(os.path.join(FLAGS.log, "sequences"))
         if FLAGS.split == 'train':
             for seq in DATA["split"]["train"]:
-                seq = '{0:02d}'.format(int(seq)) #KITTI odometry
+                seq = '{0:04d}'.format(int(seq)) #KITTI odometry
                 #seq = '2013_05_28_drive_%04d_sync' %seq #KITTI-360
                 print("train", seq)
                 os.makedirs(os.path.join(FLAGS.log, 'SalsaNext_semantics', seq))
                 os.makedirs(os.path.join(FLAGS.log, 'SalsaNext_semantics', seq, "predictions"))
         if FLAGS.split == 'valid':
             for seq in DATA["split"]["valid"]:
-                seq = '{0:02d}'.format(int(seq)) #KITTI odometry
+                seq = '{0:04d}'.format(int(seq)) #KITTI odometry
                 #seq = '2013_05_28_drive_%04d_sync' %seq #KITTI-360
                 print("valid", seq)
                 os.makedirs(os.path.join(FLAGS.log, 'SalsaNext_semantics', seq))
                 os.makedirs(os.path.join(FLAGS.log, 'SalsaNext_semantics', seq, "predictions"))
         if FLAGS.split == 'test':
             for seq in DATA["split"]["test"]:
-                seq = '{0:02d}'.format(int(seq)) #KITTI odometry
+                seq = '{0:04d}'.format(int(seq)) #KITTI odometry
                 #seq = '2013_05_28_drive_%04d_sync' %seq #KITTI-360
                 print("test", seq)
                 os.makedirs(os.path.join(FLAGS.log, 'SalsaNext_semantics', seq))

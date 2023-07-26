@@ -123,23 +123,24 @@ class Kitti360(Dataset):
     # fill in with names, checking that all sequences are complete
     for seq in self.sequences:
       #seq = '2013_05_28_drive_%04d_sync' %seq #Kitti360
-      seq = '{0:04d}'.format(int(seq))
+      seq = '{0:02d}'.format(int(seq))
+
       print("parsing seq {}".format(seq))
-      
+
       # get paths for each
       scan_path = os.path.join(self.root, seq, "velodyne")
       label_path = os.path.join(self.root, seq, "labels")
-      
+
       # get files
       scan_files = [os.path.join(dp, f) for dp, dn, fn in os.walk(
           os.path.expanduser(scan_path)) for f in fn if is_scan(f)]
       label_files = [os.path.join(dp, f) for dp, dn, fn in os.walk(
           os.path.expanduser(label_path)) for f in fn if is_label(f)]
-      
+
       # check all scans have labels
       if self.gt:
         assert(len(scan_files) == len(label_files))
-        
+
       # extend list
       self.scan_files.extend(scan_files)
       self.label_files.extend(label_files)

@@ -20,7 +20,7 @@ projected_preds = ''
 
 dataset = pykitti.odometry(basedir, sequence)
 
-EXTENSIONS_LABEL = ['.label']
+EXTENSIONS_LABEL = ['.bin']
 EXTENSIONS_LIDAR = ['.bin']
 EXTENSIONS_IMG = ['.png']
 

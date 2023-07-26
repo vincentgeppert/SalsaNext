@@ -85,6 +85,7 @@ class User():
     self.model_single = self.model
     self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("Infering in device: ", self.device)
+    print(torch.cuda.is_available())
     if torch.cuda.is_available() and torch.cuda.device_count() > 0:
       cudnn.benchmark = True
       cudnn.fastest = True
@@ -148,7 +149,6 @@ class User():
         unproj_range = unproj_range[0, :npoints]
         path_seq = path_seq[0]
         path_name = path_name[0]
-
         if self.gpu:
           proj_in = proj_in.cuda()
           p_x = p_x.cuda()
@@ -334,7 +334,6 @@ class User():
 
             proj_output = self.model(proj_in)
             proj_argmax = proj_output[0].argmax(dim=0)
-    
             if torch.cuda.is_available():
                 torch.cuda.synchronize()
             res = time.time() - end
@@ -374,7 +373,6 @@ class User():
             # save scan
             # get the first scan in batch and project scan
             pred_np = unproj_argmax.cpu().numpy()
-        
             #pred_np = pred_np.reshape((-1)).astype(np.int32)
             pred_np = pred_np.reshape((-1)).astype(np.int16)
 
